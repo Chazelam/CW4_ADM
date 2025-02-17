@@ -92,7 +92,7 @@ concentration = calculate_concentration(x_grid, y_grid, 1, stability_class)
 
 # Plotting
 levels = list(np.geomspace(MIN_CONCENTRATION, 1, 20))
-plt.contourf(x_grid, y_grid, concentration, levels, colors=['#808080', '#A0A0A0', '#C0C0C0'])
+plt.contour(x_grid, y_grid, concentration, levels, cmap='viridis')  # Используем контурные линии и цветовую карту
 plt.axis('off')
 plt.savefig('plume_dispersion.jpg', dpi=300, bbox_inches='tight', facecolor="black")
 plt.axis('on')
