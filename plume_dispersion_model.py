@@ -137,13 +137,29 @@ class GaussianPlumeModel(AirPlumeModel):
             raise ValueError("source_positions cannot be empty")
 
         concentration = np.zeros(x.shape)
-        sigma_y, sigma_z = self.calculate_plume_dispersion(x, stability_class)
         for source in self.source_positions:
+            # Маска для точек, которые находятся "после" источника по оси X
+            mask = x >= source[0]
+            
+            # Расстояние от источника (только для точек, которые находятся "после" источника)
+            distance = np.where(mask, x - source[0], 0)
+            
+            # Рассчитываем коэффициенты дисперсии только для точек, которые находятся "после" источника
+            sigma_y, sigma_z = self.calculate_plume_dispersion(distance, stability_class)
+            
+            # Заменяем нулевые значения на очень маленькие положительные числа
+            sigma_y = np.where(sigma_y <= 0, 1e-20, sigma_y)
+            sigma_z = np.where(sigma_z <= 0, 1e-20, sigma_z)
+            
+            # Вычисляем концентрацию только для точек, которые находятся "после" источника
             term1 = self.source_emission_rate / (2 * np.pi * self.wind_speed * sigma_y * sigma_z)
             term2 = np.exp(-((y - source[1]) ** 2) / (2 * sigma_y ** 2))
             term3 = np.exp(-((z - self.release_height) ** 2) / (2 * sigma_z ** 2))
             term4 = np.exp(-((z + self.release_height) ** 2) / (2 * sigma_z ** 2))
-            concentration += term1 * term2 * (term3 + term4)
+            
+            # Добавляем концентрацию только для точек, которые находятся "после" источника
+            concentration += np.where(mask, term1 * term2 * (term3 + term4), 0)
+        
         return concentration
 
 
@@ -153,8 +169,11 @@ if __name__ == "__main__":
     SOURCE_EMISSION_RATE = 10  # Скорость выброса источника (кг/с)
     WIND_SPEED = 3  # Скорость ветра (м/с)
     RELEASE_HEIGHT = 0  # Высота выброса (м)
-    MIN_CONCENTRATION = 7.72850010233e-6  # Минимальный порог концентрации
-    SOURCE_POSITIONS = [(500, 0, 0), (500, 200, 0)]  # Позиция источника (x0, y0, z0)
+    MIN_CONCENTRATION = 5*10e-6 # Минимальный порог концентрации
+    SOURCE_POSITIONS = [(100, 0, 0),   (180, 0, 0),
+                        (100, 40, 0),  (180, 40, 0), (260, 40, 0), 
+                                       (180, 80, 0), (260, 80, 0), 
+                                                     (260, 120, 0)]  # Позиция источника (x0, y0, z0)
 
     # Параметры сетки
     DOMAIN_SIZE_X = 6000  # Размер области по x (м)
@@ -177,6 +196,7 @@ if __name__ == "__main__":
 
     # Создание сетки
     x_grid, y_grid = plume_model.create_grid()
+
 
     # Расчет концентрации
     concentration = plume_model.calculate_concentration(x_grid, y_grid, 1, stability_class)
