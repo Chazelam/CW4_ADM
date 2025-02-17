@@ -23,7 +23,7 @@ class AirPlumeModel:
         :return: Кортеж из двух массивов (x_grid, y_grid), представляющих сетку.
         """
         x_grid, y_grid = np.meshgrid(
-            np.linspace(0.005, self.domain_size_x, self.num_points),
+            np.linspace(1e-20, self.domain_size_x, self.num_points), # Начинаем не с 0 что бы избежать деления на 0
             np.linspace(-self.domain_size_y, self.domain_size_y, 2 * self.num_points)
         )
         return x_grid, y_grid
@@ -38,7 +38,6 @@ class AirPlumeModel:
         :param min_concentration: Минимальное значение концентрации для отображения.
         """
         concentration = np.where(concentration <= 0, 1e-20, concentration)
-
         levels = np.geomspace(min_concentration, concentration.max(), 20)  # Логарифмические уровни
         plt.contourf(
             x_grid, y_grid, concentration,
@@ -49,7 +48,6 @@ class AirPlumeModel:
         )
         cbar = plt.colorbar()
         cbar.ax.set_yscale('log')
-        plt.show()
 
 
 class GaussianPlumeModel(AirPlumeModel):
@@ -134,15 +132,18 @@ class GaussianPlumeModel(AirPlumeModel):
         :param stability_class: Класс атмосферной стабильности ("B", "C" или "D").
         :return: Массив концентраций.
         """
-        concentration = np.zeros_like(x)
-        for source in self.source_positions:
-            sigma_y, sigma_z = self.calculate_plume_dispersion(x, stability_class)
 
+        if not self.source_positions:
+            raise ValueError("source_positions cannot be empty")
+
+        concentration = np.zeros(x.shape)
+        sigma_y, sigma_z = self.calculate_plume_dispersion(x, stability_class)
+        for source in self.source_positions:
             term1 = self.source_emission_rate / (2 * np.pi * self.wind_speed * sigma_y * sigma_z)
             term2 = np.exp(-((y - source[1]) ** 2) / (2 * sigma_y ** 2))
             term3 = np.exp(-((z - self.release_height) ** 2) / (2 * sigma_z ** 2))
             term4 = np.exp(-((z + self.release_height) ** 2) / (2 * sigma_z ** 2))
-            concentration = np.add(concentration, term1 * term2 * (term3 + term4))
+            concentration += term1 * term2 * (term3 + term4)
         return concentration
 
 
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     WIND_SPEED = 3  # Скорость ветра (м/с)
     RELEASE_HEIGHT = 0  # Высота выброса (м)
     MIN_CONCENTRATION = 7.72850010233e-6  # Минимальный порог концентрации
-    source_positions = [(500, 0, 0), (500, 200, 0)]  # Позиция источника (x0, y0, z0)
+    SOURCE_POSITIONS = [(500, 0, 0), (500, 200, 0)]  # Позиция источника (x0, y0, z0)
 
     # Параметры сетки
     DOMAIN_SIZE_X = 6000  # Размер области по x (м)
@@ -162,13 +163,13 @@ if __name__ == "__main__":
 
     # Создание модели
     plume_model = GaussianPlumeModel(
-        domain_size_x=DOMAIN_SIZE_X,
-        domain_size_y=DOMAIN_SIZE_Y,
-        num_points=NUM_POINTS,
-        source_emission_rate=SOURCE_EMISSION_RATE,
-        wind_speed=WIND_SPEED,
-        release_height=RELEASE_HEIGHT,
-        source_positions=source_positions
+        domain_size_x        = DOMAIN_SIZE_X,
+        domain_size_y        = DOMAIN_SIZE_Y,
+        num_points           = NUM_POINTS,
+        source_emission_rate = SOURCE_EMISSION_RATE,
+        wind_speed           = WIND_SPEED,
+        release_height       = RELEASE_HEIGHT,
+        source_positions     = SOURCE_POSITIONS
     )
 
     # Определение класса стабильности
@@ -179,7 +180,7 @@ if __name__ == "__main__":
 
     # Расчет концентрации
     concentration = plume_model.calculate_concentration(x_grid, y_grid, 1, stability_class)
-    # print(concentration.max())
 
     # Отрисовка графика
     plume_model.plot(x_grid, y_grid, concentration, MIN_CONCENTRATION)
+    plt.show()
