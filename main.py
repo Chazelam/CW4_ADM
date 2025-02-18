@@ -1,4 +1,4 @@
-from gaussian_plume_model import GaussianPlumeModel
+from gaussian_plume_model import StationaryGaussianPlumeModel
 
 # Основной скрипт
 if __name__ == "__main__":
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     NUM_POINTS = 2000  # Количество точек для построения
 
     # Создание модели
-    plume_model = GaussianPlumeModel(
+    plume_model = StationaryGaussianPlumeModel(
         domain_size_x        = DOMAIN_SIZE_X,
         domain_size_y        = DOMAIN_SIZE_Y,
         num_points           = NUM_POINTS,

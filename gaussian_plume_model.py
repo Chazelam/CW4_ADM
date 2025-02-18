@@ -2,13 +2,6 @@ from air_plume_model import AirPlumeModel
 import numpy as np
 
 class GaussianPlumeModel(AirPlumeModel):
-    # Коэффициенты дисперсии для классов атмосферной стабильности
-    DISPERSION_COEFFICIENTS = {
-        "B": {"sigma_y": (0.16, 0.0001), "sigma_z": (0.12, 0.0)},
-        "C": {"sigma_y": (0.11, 0.0001), "sigma_z": (0.08, 0.0002)},
-        "D": {"sigma_y": (0.08, 0.0001), "sigma_z": (0.06, 0.0015)},
-    }
-
     def __init__(self,
                  domain_size_x: int,
                  domain_size_y: int,
@@ -19,7 +12,7 @@ class GaussianPlumeModel(AirPlumeModel):
                  release_height: float,
                  source_positions: list[tuple[int, int, int]]) -> None:
         """
-        Инициализация Стационарной Гауссовой модели рассеивания примеси.
+        Инициализация Гауссовой модели рассеивания примеси.
 
         :param domain_size_x: Размер рассматривоемой области по оси X (в метрах).
         :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
@@ -99,6 +92,29 @@ class GaussianPlumeModel(AirPlumeModel):
         else:
             return "D"
 
+
+class StationaryGaussianPlumeModel(GaussianPlumeModel):
+    # Коэффициенты дисперсии для классов атмосферной стабильности
+    DISPERSION_COEFFICIENTS = {
+        "B": {"sigma_y": (0.16, 0.0001), "sigma_z": (0.12, 0.0)},
+        "C": {"sigma_y": (0.11, 0.0001), "sigma_z": (0.08, 0.0002)},
+        "D": {"sigma_y": (0.08, 0.0001), "sigma_z": (0.06, 0.0015)},
+    }
+
+    def __init__(self, domain_size_x, domain_size_y, num_points, source_emission_rate, wind_speed, wind_direction, release_height, source_positions):
+        """
+        Инициализация Стационарной Гауссовой модели рассеивания примеси.
+
+        :param domain_size_x: Размер рассматривоемой области по оси X (в метрах).
+        :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
+        :param num_points: Количество точек для построения сетки.
+        :param source_emission_rate: мощность непрерывного точечного источника загрязнения (г/с).
+        :param release_height: эффективная высота источника загрязнения (м).
+        :param wind_speed: Скорость ветра на высоте release_height (м/с).
+        :param source_positions: Список позиций источников загрязнения (x0, y0, z0).
+        """
+        super().__init__(domain_size_x, domain_size_y, num_points, source_emission_rate, wind_speed, wind_direction, release_height, source_positions)
+
     def calculate_plume_dispersion(self, x: float, stability_class: str) -> tuple[float, float]:
         """
         Рассчитывает коэффициенты горизонтальной (sigma_y) и вертикальной (sigma_z) дисперсии.
@@ -144,7 +160,7 @@ class GaussianPlumeModel(AirPlumeModel):
             # Рассчитываем коэффициенты дисперсии только для точек, которые находятся "после" источника
             sigma_y, sigma_z = self.calculate_plume_dispersion(distance, stability_class)
             
-            # Заменяем нулевые значения на очень маленькие положительные числа
+            # Заменяем нулевые значения на очень маленькие положительные числа для избежания деления на 0
             sigma_y = np.where(sigma_y <= 0, 1e-20, sigma_y)
             sigma_z = np.where(sigma_z <= 0, 1e-20, sigma_z)
             
