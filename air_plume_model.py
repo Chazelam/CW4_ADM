@@ -37,7 +37,7 @@ class AirPlumeModel:
         :param concentration: Массив концентраций.
         :param min_concentration: Минимальное значение концентрации для отображения.
         """
-        concentration = np.where(concentration <= 0, 1e-20, concentration)
+        concentration = np.where(concentration <= 0, 1e-50, concentration)
         levels = np.geomspace(min_concentration, concentration.max(), 20)  # Логарифмические уровни
         plt.contourf(
             x_grid, y_grid, concentration,
