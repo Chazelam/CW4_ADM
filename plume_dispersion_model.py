@@ -163,12 +163,48 @@ class GaussianPlumeModel(AirPlumeModel):
         return concentration
 
 
+def rotate_coordinates(x: np.ndarray, y: np.ndarray, angle_deg: float) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Поворачивает координаты (x, y) на заданный угол.
+
+    :param x: Массив координат по оси X.
+    :param y: Массив координат по оси Y.
+    :param angle_deg: Угол поворота в градусах.
+    :return: Кортеж (x_rotated, y_rotated) - повернутые координаты.
+    """
+    angle_rad = np.radians(angle_deg)  # Преобразуем угол в радианы
+    x_rotated = x * np.cos(angle_rad) - y * np.sin(angle_rad)
+    y_rotated = x * np.sin(angle_rad) + y * np.cos(angle_rad)
+    return x_rotated, y_rotated
+
+
+def shift_coordinates(sources: list[tuple[int, int, int]]) -> list[tuple[int, int, int]]:
+    """
+    Смещает координаты источников так, чтобы они не уходили в отрицательные значения.
+
+    :param sources: Список координат источников (x, y, z).
+    :return: Кортеж (смещенные координаты, (смещение по x, смещение по y)).
+    """
+    # Находим минимальные значения по x и y
+    min_x = min(source[0] for source in sources)
+    min_y = min(source[1] for source in sources)
+
+    # Смещаем координаты
+    shifted_sources = [
+        (source[0] + abs(min_x), source[1] + abs(min_y), source[2])
+        for source in sources
+    ]
+
+    return shifted_sources
+
+
 # Основной скрипт
 if __name__ == "__main__":
     # Константы
     SOURCE_EMISSION_RATE = 10  # Скорость выброса источника (кг/с)
     WIND_SPEED = 3  # Скорость ветра (м/с)
-    RELEASE_HEIGHT = 0  # Высота выброса (м)
+    WIND_DIRECTION = 0 # Направление ветра в градусах (Относительно оси X)
+    RELEASE_HEIGHT = 0  # Высота выброса (м)Ы
     MIN_CONCENTRATION = 5*10e-6 # Минимальный порог концентрации
     SOURCE_POSITIONS = [(100, 0, 0),   (180, 0, 0),
                         (100, 40, 0),  (180, 40, 0), (260, 40, 0), 
@@ -197,6 +233,15 @@ if __name__ == "__main__":
     # Создание сетки
     x_grid, y_grid = plume_model.create_grid()
 
+    # Поворот координат источников в соответствии с направлением ветра
+    if WIND_DIRECTION % 360 != 0:
+        rotated_source_positions = []
+        for source in SOURCE_POSITIONS:
+            x_rotated, y_rotated = rotate_coordinates(source[0], source[1], -WIND_DIRECTION)
+            rotated_source_positions.append((x_rotated, y_rotated, source[2]))
+
+        # Обновляем позиции источников в модели
+        plume_model.source_positions = shift_coordinates(rotated_source_positions)
 
     # Расчет концентрации
     concentration = plume_model.calculate_concentration(x_grid, y_grid, 1, stability_class)
