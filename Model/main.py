@@ -1,4 +1,4 @@
-from gaussian_plume_model import StationaryGaussianPlumeModel
+from Model.gaussian_plume_model import StationaryGaussianPlumeModel
 
 # Основной скрипт
 if __name__ == "__main__":
@@ -33,12 +33,9 @@ if __name__ == "__main__":
     # Определение класса стабильности
     stability_class = plume_model.determine_atmospheric_stability(WIND_SPEED)
 
-    # Создание сетки
-    x_grid, y_grid = plume_model.create_grid()
-
     # Расчет концентрации
-    concentration = plume_model.calculate_concentration(x_grid, y_grid, 1, stability_class)
+    concentration = plume_model.calculate_concentration(1, stability_class)
 
     # Отрисовка графика
-    plt = plume_model.plot(x_grid, y_grid, concentration, MIN_CONCENTRATION)
+    plt = plume_model.plot(concentration, MIN_CONCENTRATION)
     plt.show()

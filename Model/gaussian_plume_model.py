@@ -1,4 +1,4 @@
-from air_plume_model import AirPlumeModel
+from Model.air_plume_model import AirPlumeModel
 import numpy as np
 
 class GaussianPlumeModel(AirPlumeModel):
@@ -135,7 +135,7 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
 
         return sigma_y, sigma_z
 
-    def calculate_concentration(self, x: np.ndarray, y: np.ndarray, z: float, stability_class: str) -> np.ndarray:
+    def calculate_concentration(self,  z: float, stability_class: str) -> np.ndarray:
         """
         Рассчитывает концентрацию загрязнителя с использованием Стационарной Гауссовой модели рассеивания примеси.
 
@@ -145,7 +145,9 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
         :param stability_class: Класс атмосферной стабильности ("B", "C" или "D").
         :return: Массив концентраций.
         """
-
+        self.create_grid()
+        x = self.x_grid
+        y = self.y_grid
         if not self.source_positions:
             raise ValueError("source_positions cannot be empty")
 

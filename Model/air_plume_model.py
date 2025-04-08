@@ -22,13 +22,12 @@ class AirPlumeModel:
 
         :return: Кортеж из двух массивов (x_grid, y_grid), представляющих сетку.
         """
-        x_grid, y_grid = np.meshgrid(
+        self.x_grid, self.y_grid = np.meshgrid(
             np.linspace(1e-20, self.domain_size_x, self.num_points), # Начинаем не с 0 что бы избежать деления на 0
             np.linspace(-self.domain_size_y, self.domain_size_y, 2 * self.num_points)
         )
-        return x_grid, y_grid
 
-    def plot(self, x_grid: np.ndarray, y_grid: np.ndarray, concentration: np.ndarray, min_concentration: float) -> None:
+    def plot(self, concentration: np.ndarray, min_concentration: float, fill: bool = True) -> None:
         """
         Отрисовывает график концентрации.
 
@@ -36,16 +35,25 @@ class AirPlumeModel:
         :param y_grid: Сетка по оси Y.
         :param concentration: Массив концентраций.
         :param min_concentration: Минимальное значение концентрации для отображения.
+        :param fill: Заливка графика, True по умолчанию.
         """
         concentration = np.where(concentration <= 0, 1e-50, concentration)
         levels = np.geomspace(min_concentration, concentration.max(), 20)  # Логарифмические уровни
-        plt.contourf(
-            x_grid, y_grid, concentration,
-            levels=levels,
-            cmap='cividis',  # Цветовая карта
-            norm=LogNorm(vmin=min_concentration, vmax=concentration.max()),  # Логарифмическая нормализация
-            linewidths=1  # Толщина линий
-        )
+        if fill:
+            plt.contourf(
+                self.x_grid, self.y_grid, concentration,
+                levels=levels,
+                cmap='cividis',  # Цветовая карта
+                norm=LogNorm(vmin=min_concentration, vmax=concentration.max()),  # Логарифмическая нормализация
+            )
+        else:
+            plt.contour(
+                self.x_grid, self.y_grid, concentration,
+                levels=levels,
+                cmap='cividis',  # Цветовая карта
+                norm=LogNorm(vmin=min_concentration, vmax=concentration.max()),  # Логарифмическая нормализация
+                linewidths=1  # Толщина линий
+            )
         cbar = plt.colorbar()
         cbar.ax.set_yscale('log')
         return plt
