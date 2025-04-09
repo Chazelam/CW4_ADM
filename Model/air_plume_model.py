@@ -27,7 +27,7 @@ class AirPlumeModel:
             np.linspace(-self.domain_size_y, self.domain_size_y, 2 * self.num_points)
         )
 
-    def plot(self, concentration: np.ndarray, min_concentration: float, fill: bool = True) -> None:
+    def plot(self, concentration: np.ndarray, min_concentration: float = 1e-40, fill: bool = True) -> None:
         """
         Отрисовывает график концентрации.
 
