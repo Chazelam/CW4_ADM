@@ -1,4 +1,4 @@
-from Model.air_plume_model import AirPlumeModel
+from air_plume_model import AirPlumeModel
 import numpy as np
 
 class GaussianPlumeModel(AirPlumeModel):
@@ -7,7 +7,6 @@ class GaussianPlumeModel(AirPlumeModel):
                  domain_size_y: int,
                  num_points: int,
                  source_emission_rate: float,
-                 wind_speed: float,
                  wind_direction: float,
                  source_positions: list[tuple[float, float, float]]) -> None:
         """
@@ -17,14 +16,12 @@ class GaussianPlumeModel(AirPlumeModel):
         :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
         :param num_points: Количество точек для построения сетки.
         :param source_emission_rate: мощность непрерывного точечного источника загрязнения (г/с).
-        :param wind_speed: Скорость ветра (м/с).
         :param source_positions: Список позиций источников загрязнения (x0, y0, z0).
         """
         super().__init__(domain_size_x, domain_size_y, num_points)
 
         # Основные параметры модели
         self.source_emission_rate = source_emission_rate  # Q - мощность источника
-        self.wind_speed = wind_speed                      # u - скорость переноса примеси
 
         # Параметры, влияющие на перерасчет позиций источников
         self._wind_direction = wind_direction
@@ -77,11 +74,13 @@ class GaussianPlumeModel(AirPlumeModel):
         return x_rotated, y_rotated     
 
     @staticmethod
-    def shift_coordinates(sources: list[tuple[float, float, float]]) -> list[tuple[float, float, float]]:
+    def shift_coordinates(sources: list[tuple[float, float, float]], 
+                          x_offset: int = 100) -> list[tuple[float, float, float]]:
         """
         Смещает координаты источников так, чтобы они не уходили в отрицательные значения.
 
         :param sources: Список координат источников (x, y, z).
+        :param x_offset Отступ от границы, по умолчанию 100 м.
         :return: Список смещенных координат источников
         """
         if not sources:
@@ -94,7 +93,7 @@ class GaussianPlumeModel(AirPlumeModel):
         # Расчет смещения
         shift_x = max(-min_x, 0)
         shift_y = max(-min_y, 0)
-        x_offset = 100  # Отступ от границы
+       
 
         shifted_sources = [(x + shift_x + x_offset, y + shift_y, z) for x, y, z in sources]
 
@@ -125,7 +124,14 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
         "D": {"sigma_y": (0.08, 0.0001), "sigma_z": (0.06, 0.0015)},
     }
 
-    def __init__(self, domain_size_x, domain_size_y, num_points, source_emission_rate, wind_speed, wind_direction, release_height, source_positions):
+    def __init__(self, 
+                 domain_size_x: int, 
+                 domain_size_y: int, 
+                 num_points: int, 
+                 source_emission_rate: float, 
+                 wind_speed: float, 
+                 wind_direction: float, 
+                 source_positions: list[tuple[float, float, float]]) -> None:
         """
         Инициализация Стационарной Гауссовой модели рассеивания примеси.
 
@@ -133,45 +139,57 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
         :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
         :param num_points: Количество точек для построения сетки.
         :param source_emission_rate: мощность непрерывного точечного источника загрязнения (г/с).
-        :param release_height: эффективная высота источника загрязнения (м).
-        :param wind_speed: Скорость ветра на высоте release_height (м/с).
+        :param wind_speed: Скорость ветра (м/с).
         :param source_positions: Список позиций источников загрязнения (x0, y0, z0).
         """
-        super().__init__(domain_size_x, domain_size_y, num_points, source_emission_rate, wind_speed, wind_direction, release_height, source_positions)
+        super().__init__(domain_size_x, 
+                         domain_size_y, 
+                         num_points, 
+                         source_emission_rate, 
+                         wind_direction, 
+                         source_positions)
+        
+        self._wind_speed = wind_speed          # u - скорость переноса примеси
+        self._stability_class = self.determine_atmospheric_stability(wind_speed)
 
-    def calculate_plume_dispersion(self, x: np.ndarray[float], stability_class: str) -> tuple[float, float]:
+    @property
+    def wind_speed(self) -> float:
+        return self._wind_speed
+    
+    @wind_speed.setter
+    def wind_speed(self, value: float) -> None:
+        self._wind_speed = value
+        self._stability_class = self.determine_atmospheric_stability(value)
+
+    def calculate_plume_dispersion(self, dx: np.ndarray[float]) -> tuple[np.ndarray[float], np.ndarray[float]]:
         """
         Рассчитывает коэффициенты горизонтальной (sigma_y) и вертикальной (sigma_z) дисперсии.
 
-        :param x: Расстояние от источника (в метрах).
-        :param stability_class: Класс атмосферной стабильности ("B", "C" или "D").
+        :param dx: Расстояние от источника (в метрах).
         :return: Кортеж (sigma_y, sigma_z) коэффициентов дисперсии.
         """
-        coeff = self.DISPERSION_COEFFICIENTS.get(stability_class)
+        coeff = self.DISPERSION_COEFFICIENTS.get(self._stability_class)
         if not coeff:
-            raise ValueError(f"Unknown stability class: {stability_class}")
+            raise ValueError(f"Unknown stability class: {self._stability_class}")
 
         a_y, b_y = coeff["sigma_y"]
         a_z, b_z = coeff["sigma_z"]
 
-        sigma_y = a_y * x / np.sqrt(1 + b_y * x)
-        sigma_z = a_z * x / np.sqrt(1 + b_z * x)
+        sigma_y = a_y * dx / np.sqrt(1 + b_y * dx)
+        sigma_z = a_z * dx / np.sqrt(1 + b_z * dx)
 
         return sigma_y, sigma_z
 
-    def calculate_concentration(self,  z: float, stability_class: str) -> np.ndarray:
+    def calculate_concentration(self,  z: float) -> np.ndarray:
         """
         Рассчитывает концентрацию загрязнителя с использованием Стационарной Гауссовой модели рассеивания примеси.
 
-        :param x: Расстояние по направлению ветра от источника (м).
-        :param y: Поперечное расстояние от центральной линии (м).
-        :param z: Вертикальное расстояние от земли (м).
-        :param stability_class: Класс атмосферной стабильности ("B", "C" или "D").
+        :param z: Вертикальное расстояние от земли (м) (рассматриваемый слой).
         :return: Массив концентраций.
         """
         self.create_grid()
-        x = self.x_grid
-        y = self.y_grid
+        x = self._x_grid
+        y = self._y_grid
         if not self.source_positions:
             raise ValueError("source_positions cannot be empty")
 
@@ -184,7 +202,7 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
             distance = np.where(mask, x - source[0], 0)
             
             # Рассчитываем коэффициенты дисперсии только для точек, которые находятся "после" источника
-            sigma_y, sigma_z = self.calculate_plume_dispersion(distance, stability_class)
+            sigma_y, sigma_z = self.calculate_plume_dispersion(distance)
             
             # Заменяем нулевые значения на очень маленькие положительные числа для избежания деления на 0
             sigma_y = np.where(sigma_y <= 0, 1e-20, sigma_y)
@@ -193,10 +211,45 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
             # Вычисляем концентрацию только для точек, которые находятся "после" источника
             term1 = self.source_emission_rate / (2 * np.pi * self.wind_speed * sigma_y * sigma_z)
             term2 = np.exp(-((y - source[1]) ** 2) / (2 * sigma_y ** 2))
-            term3 = np.exp(-((z - self.release_height) ** 2) / (2 * sigma_z ** 2))
-            term4 = np.exp(-((z + self.release_height) ** 2) / (2 * sigma_z ** 2))
+            term3 = np.exp(-((z - source[2]) ** 2) / (2 * sigma_z ** 2))
+            term4 = np.exp(-((z + source[2]) ** 2) / (2 * sigma_z ** 2))
             
             # Добавляем концентрацию только для точек, которые находятся "после" источника
             concentration += np.where(mask, term1 * term2 * (term3 + term4), 0)
         
         return concentration
+    
+
+if __name__ == "__main__":
+    # Константы
+    SOURCE_EMISSION_RATE = 10  # Скорость выброса источника (кг/с)
+    WIND_SPEED = 3  # Скорость ветра (м/с)
+    WIND_DIRECTION = 135 # Направление ветра в градусах (Относительно оси X)
+    MIN_CONCENTRATION = 5*10e-6 # Минимальный порог концентрации
+    SOURCE_POSITIONS = [(100, 0, 0),   (180, 0, 0),
+                        (100, 40, 0),  (180, 40, 0), (260, 40, 0), 
+                                       (180, 80, 0), (260, 80, 0), 
+                                                     (260, 120, 0)]  # Позиция источника (x0, y0, z0)
+
+    # Параметры сетки
+    DOMAIN_SIZE_X = 6000  # Размер области по x (м)
+    DOMAIN_SIZE_Y = 1500  # Размер области по y (м)
+    NUM_POINTS = 2000  # Количество точек для построения
+
+    # Создание модели
+    plume_model = StationaryGaussianPlumeModel(
+        domain_size_x        = DOMAIN_SIZE_X,
+        domain_size_y        = DOMAIN_SIZE_Y,
+        num_points           = NUM_POINTS,
+        source_emission_rate = SOURCE_EMISSION_RATE,
+        wind_speed           = WIND_SPEED,
+        wind_direction       = WIND_DIRECTION,
+        source_positions     = SOURCE_POSITIONS
+    )
+
+    # Расчет концентрации
+    concentration = plume_model.calculate_concentration(1)
+
+    # Отрисовка графика
+    plt = plume_model.plot(concentration, MIN_CONCENTRATION)
+    plt.show()
