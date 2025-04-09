@@ -9,8 +9,7 @@ class GaussianPlumeModel(AirPlumeModel):
                  source_emission_rate: float,
                  wind_speed: float,
                  wind_direction: float,
-                 release_height: float,
-                 source_positions: list[tuple[int, int, int]]) -> None:
+                 source_positions: list[tuple[float, float, float]]) -> None:
         """
         Инициализация Гауссовой модели рассеивания примеси.
 
@@ -18,37 +17,58 @@ class GaussianPlumeModel(AirPlumeModel):
         :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
         :param num_points: Количество точек для построения сетки.
         :param source_emission_rate: мощность непрерывного точечного источника загрязнения (г/с).
-        :param release_height: эффективная высота источника загрязнения (м).
-        :param wind_speed: Скорость ветра на высоте release_height (м/с).
+        :param wind_speed: Скорость ветра (м/с).
         :param source_positions: Список позиций источников загрязнения (x0, y0, z0).
         """
         super().__init__(domain_size_x, domain_size_y, num_points)
 
-        self.source_emission_rate = source_emission_rate
-        self.wind_speed = wind_speed
-        self.release_height = release_height
+        # Основные параметры модели
+        self.source_emission_rate = source_emission_rate  # Q - мощность источника
+        self.wind_speed = wind_speed                      # u - скорость переноса примеси
 
-        # Поворот координат источников в соответствии с направлением ветра
-        if wind_direction % 360 != 0:
-            rotated_source_positions = []
-            for source in source_positions:
-                x_rotated, y_rotated = self.rotate_coordinates(source[0], source[1], -wind_direction)
-                rotated_source_positions.append((x_rotated, y_rotated, source[2]))
+        # Параметры, влияющие на перерасчет позиций источников
+        self._wind_direction = wind_direction
+        self._original_source_positions = source_positions  # Исходные позиции
+        self._cached_source_positions = None                # Кэш повернутых позиций
 
-            # Обновляем позиции источников в модели
-            self.source_positions = self.shift_coordinates(rotated_source_positions)
-        else:
-            self.source_positions = self.shift_coordinates(source_positions)
+    @property
+    def wind_direction(self) -> float:
+        return self._wind_direction
+
+    @wind_direction.setter
+    def wind_direction(self, value: float) -> None:
+        self._wind_direction = value
+        self._cached_source_positions = None # Сброс кэша при изменении направления
+
+    @property
+    def source_positions(self):
+        """Рассчитанные позиции источников с учетом направления ветра и смещений"""
+        if self._cached_source_positions is None:
+            # Поворот системы координат согласно направлению ветра
+            if self._wind_direction % 360 != 0:
+                rotated_source_positions = []
+                for source in self._original_source_positions:
+                    # Поворот против направления ветра для компенсации
+                    x_rotated, y_rotated = self.rotate_coordinates(source[0], source[1], -self._wind_direction)
+                    rotated_source_positions.append((x_rotated, y_rotated, source[2]))
+
+                # Смещение координат в положительную область
+                self._cached_source_positions = self.shift_coordinates(rotated_source_positions)
+            else:
+                # Без поворота - простое смещение
+                self._cached_source_positions = self.shift_coordinates(self._original_source_positions)
+
+        return self._cached_source_positions
 
     @staticmethod
-    def rotate_coordinates(x: np.ndarray, y: np.ndarray, angle_deg: float) -> tuple[np.ndarray, np.ndarray]:
+    def rotate_coordinates(x: float, y: float, angle_deg: float) -> tuple[float, float]:
         """
-        Поворачивает координаты (x, y) на заданный угол.
+        Поворот декартовых координат на заданный угол
 
-        :param x: Массив координат по оси X.
-        :param y: Массив координат по оси Y.
-        :param angle_deg: Угол поворота в градусах.
-        :return: Кортеж (x_rotated, y_rotated) - повернутые координаты.
+        :param x: Исходная координата X
+        :param y: Исходная координата Y
+        :param angle_deg: Угол поворота в градусах (положительный - против часовой)
+        :return: Повернутые координаты (x', y')
         """
         angle_rad = np.radians(angle_deg)  # Преобразуем угол в радианы
         x_rotated = x * np.cos(angle_rad) - y * np.sin(angle_rad)
@@ -57,22 +77,26 @@ class GaussianPlumeModel(AirPlumeModel):
         return x_rotated, y_rotated     
 
     @staticmethod
-    def shift_coordinates(sources: list[tuple[int, int, int]]) -> list[tuple[int, int, int]]:
+    def shift_coordinates(sources: list[tuple[float, float, float]]) -> list[tuple[float, float, float]]:
         """
         Смещает координаты источников так, чтобы они не уходили в отрицательные значения.
 
         :param sources: Список координат источников (x, y, z).
-        :return: Кортеж (смещенные координаты, (смещение по x, смещение по y)).
+        :return: Список смещенных координат источников
         """
-        # Находим минимальные значения по x и y
-        min_x = min(source[0] for source in sources)
-        min_y = min(source[1] for source in sources)
+        if not sources:
+            return []
+        
+        # Определение минимальных отрицательных координат для смещения
+        min_x = min((source[0] for source in sources), default=0)
+        min_y = min((source[1] for source in sources), default=0)
+        
+        # Расчет смещения
+        shift_x = max(-min_x, 0)
+        shift_y = max(-min_y, 0)
+        x_offset = 100  # Отступ от границы
 
-        # Смещаем координаты
-        shifted_sources = [
-            (source[0] + abs(min_x), source[1] + abs(min_y), source[2])
-            for source in sources
-        ]
+        shifted_sources = [(x + shift_x + x_offset, y + shift_y, z) for x, y, z in sources]
 
         return shifted_sources
 
@@ -115,7 +139,7 @@ class StationaryGaussianPlumeModel(GaussianPlumeModel):
         """
         super().__init__(domain_size_x, domain_size_y, num_points, source_emission_rate, wind_speed, wind_direction, release_height, source_positions)
 
-    def calculate_plume_dispersion(self, x: float, stability_class: str) -> tuple[float, float]:
+    def calculate_plume_dispersion(self, x: np.ndarray[float], stability_class: str) -> tuple[float, float]:
         """
         Рассчитывает коэффициенты горизонтальной (sigma_y) и вертикальной (sigma_z) дисперсии.
 

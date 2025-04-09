@@ -12,27 +12,23 @@ class AirPlumeModel:
         :param domain_size_y: Размер рассматривоемой области по оси Y (в метрах).
         :param num_points: Количество точек для построения сетки.
         """
-        self.domain_size_x = domain_size_x
-        self.domain_size_y = domain_size_y
-        self.num_points = num_points
+        self._domain_size_x = domain_size_x
+        self._domain_size_y = domain_size_y
+        self._num_points = num_points
 
-    def create_grid(self) -> tuple[np.ndarray, np.ndarray]:
+    def create_grid(self) -> tuple[np.ndarray[float], np.ndarray[float]]:
         """
         Создает сетку для расчетов.
-
-        :return: Кортеж из двух массивов (x_grid, y_grid), представляющих сетку.
         """
-        self.x_grid, self.y_grid = np.meshgrid(
-            np.linspace(1e-20, self.domain_size_x, self.num_points), # Начинаем не с 0 что бы избежать деления на 0
-            np.linspace(-self.domain_size_y, self.domain_size_y, 2 * self.num_points)
+        self._x_grid, self._y_grid = np.meshgrid(
+            np.linspace(1e-20, self._domain_size_x, self._num_points), # Начинаем не с 0 что бы избежать деления на 0
+            np.linspace(-self._domain_size_y, self._domain_size_y, 2 * self._num_points)
         )
 
-    def plot(self, concentration: np.ndarray, min_concentration: float = 1e-40, fill: bool = True) -> None:
+    def plot(self, concentration: np.ndarray[float], min_concentration: float = 1e-40, fill: bool = True) -> None:
         """
         Отрисовывает график концентрации.
 
-        :param x_grid: Сетка по оси X.
-        :param y_grid: Сетка по оси Y.
         :param concentration: Массив концентраций.
         :param min_concentration: Минимальное значение концентрации для отображения.
         :param fill: Заливка графика, True по умолчанию.
@@ -41,14 +37,14 @@ class AirPlumeModel:
         levels = np.geomspace(min_concentration, concentration.max(), 20)  # Логарифмические уровни
         if fill:
             plt.contourf(
-                self.x_grid, self.y_grid, concentration,
+                self._x_grid, self._y_grid, concentration,
                 levels=levels,
                 cmap='cividis',  # Цветовая карта
                 norm=LogNorm(vmin=min_concentration, vmax=concentration.max()),  # Логарифмическая нормализация
             )
         else:
             plt.contour(
-                self.x_grid, self.y_grid, concentration,
+                self._x_grid, self._y_grid, concentration,
                 levels=levels,
                 cmap='cividis',  # Цветовая карта
                 norm=LogNorm(vmin=min_concentration, vmax=concentration.max()),  # Логарифмическая нормализация
