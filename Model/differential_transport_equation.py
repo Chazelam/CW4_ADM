@@ -2,19 +2,19 @@ from air_plume_model import AirPlumeModel
 import numpy as np
 
 class DifferentialTransportEquation(AirPlumeModel):
-    def __init__(self, domain_size_x, domain_size_y, num_points, Q: float, x0: float, y0: float, u: float, 
+    def __init__(self, domain_size_x, domain_size_y, num_points, source_emission_rate: float, x0: float, y0: float, u: float, 
                  v: float, mu: float, sigma: float):
         """
         Модель расчета концентрации примеси на основе уравнения переноса.
         
-        :param Q: Мощность источника выбросов [кг/с]
+        :param source_emission_rate: Мощность источника выбросов [кг/с]
         :param x0, y0: Координаты источника
         :param u, v: Компоненты вектора скорости ветра [м/с]
         :param mu: Коэффициент турбулентной диффузии [м²/с]
         :param sigma: Коэффициент поглощения примеси [1/с]
         """
         super().__init__(domain_size_x, domain_size_y, num_points)
-        self.Q = Q
+        self.source_emission_rate = source_emission_rate
         self.x0, self.y0 = x0, y0
         self.u, self.v = u, v
         self.mu = mu
@@ -67,7 +67,7 @@ class DifferentialTransportEquation(AirPlumeModel):
         tilde_k1 = -alpha * log_term + self._evaluate_polynomial(tilde_x**2, k1_coeffs)
         exp_factor = np.exp((self.u*dx[mask] + self.v*dy[mask])/(2*self.mu))
         
-        concentration[mask] = (self.Q/(2*np.pi*self.mu)) * tilde_k1 * exp_factor
+        concentration[mask] = (self.source_emission_rate/(2*np.pi*self.mu)) * tilde_k1 * exp_factor
 
     def _process_large_distance_case(self, dx: np.ndarray, dy: np.ndarray, 
                                     x_val: np.ndarray, concentration: np.ndarray) -> None:
@@ -85,7 +85,7 @@ class DifferentialTransportEquation(AirPlumeModel):
         tilde_k2 = self._evaluate_polynomial(tilde_x, k2_coeffs)
         exp_factor = np.exp((self.u*dx[mask] + self.v*dy[mask])/(2*self.mu) - x_ge2)
         
-        concentration[mask] = (self.Q/(2*x_ge2*np.pi*self.mu)) * tilde_k2 * exp_factor
+        concentration[mask] = (self.source_emission_rate/(2*x_ge2*np.pi*self.mu)) * tilde_k2 * exp_factor
 
     def _evaluate_polynomial(self, x: np.ndarray, coeffs: list) -> np.ndarray:
         """Вычисляет стандартный полином заданной степени"""
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     domain_size_x, domain_size_y = 1000, 500
     num_points = 1000
 
-    Q = 10          # Интенсивность источника
+    source_emission_rate = 10          # Интенсивность источника
     x0, y0=100, 0   # Координаты источника
     u, v =1, 0      # Скорость ветра
     mu=1            # Коэффициент турбулентной диффузии
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         domain_size_x        = domain_size_x,
         domain_size_y        = domain_size_y,
         num_points           = num_points,
-        Q = Q, 
+        source_emission_rate = source_emission_rate, 
         x0 = x0, y0 = y0,
         u = u, v = v,
         mu = mu,
