@@ -50,10 +50,10 @@ class GaussianPlumeModel(AirPlumeModel):
                     rotated_source_positions.append((x_rotated, y_rotated, source[2]))
 
                 # Смещение координат в положительную область
-                self._cached_source_positions = self.shift_coordinates(rotated_source_positions)
+                self._cached_source_positions = self._shift_coordinates(rotated_source_positions)
             else:
                 # Без поворота - простое смещение
-                self._cached_source_positions = self.shift_coordinates(self._original_source_positions)
+                self._cached_source_positions = self._shift_coordinates(self._original_source_positions)
 
         return self._cached_source_positions
 
@@ -74,7 +74,7 @@ class GaussianPlumeModel(AirPlumeModel):
         return x_rotated, y_rotated     
 
     @staticmethod
-    def shift_coordinates(sources: list[tuple[float, float, float]], 
+    def _shift_coordinates(sources: list[tuple[float, float, float]], 
                           x_offset: int = 100) -> list[tuple[float, float, float]]:
         """
         Смещает координаты источников так, чтобы они не уходили в отрицательные значения.
@@ -88,14 +88,11 @@ class GaussianPlumeModel(AirPlumeModel):
         
         # Определение минимальных отрицательных координат для смещения
         min_x = min((source[0] for source in sources), default=0)
-        min_y = min((source[1] for source in sources), default=0)
         
         # Расчет смещения
         shift_x = max(-min_x, 0)
-        shift_y = max(-min_y, 0)
-       
 
-        shifted_sources = [(x + shift_x + x_offset, y + shift_y, z) for x, y, z in sources]
+        shifted_sources = [(x + shift_x + x_offset, y, z) for x, y, z in sources]
 
         return shifted_sources
 

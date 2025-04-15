@@ -16,7 +16,7 @@ class AirPlumeModel:
         self._domain_size_y = domain_size_y
         self._num_points = num_points
 
-    def create_grid(self) -> tuple[np.ndarray[float], np.ndarray[float]]:
+    def create_grid(self):
         """
         Создает сетку для расчетов.
         """
